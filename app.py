@@ -412,7 +412,41 @@ if is_authenticated() and len(tabs) > 0:
             current_status = statuses.get(player, {}).get('status', 'IN')
             roster_list.append((player, current_status))
         
-        # Display in compact 12-column grid
+        # Display in compact 12-column grid - use Streamlit buttons but with absolute CSS override
+        st.markdown("""
+            <style>
+            /* Nuclear option - target ALL buttons and override with maximum specificity */
+            button[data-testid="baseButton-primary"],
+            button[data-testid="baseButton-primary"]:hover,
+            button[data-testid="baseButton-primary"]:focus,
+            button[data-testid="baseButton-primary"]:active {
+                background: #28a745 !important;
+                background-color: #28a745 !important;
+                color: white !important;
+                border-color: #28a745 !important;
+                border: 1px solid #28a745 !important;
+                padding: 1px 3px !important;
+                font-size: 0.4rem !important;
+                min-height: 18px !important;
+                height: 18px !important;
+            }
+            button[data-testid="baseButton-secondary"],
+            button[data-testid="baseButton-secondary"]:hover,
+            button[data-testid="baseButton-secondary"]:focus,
+            button[data-testid="baseButton-secondary"]:active {
+                background: transparent !important;
+                background-color: transparent !important;
+                color: #dc3545 !important;
+                border-color: #dc3545 !important;
+                border: 2px solid #dc3545 !important;
+                padding: 1px 3px !important;
+                font-size: 0.4rem !important;
+                min-height: 18px !important;
+                height: 18px !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
         for i in range(0, len(roster_list), num_cols):
             cols = st.columns(num_cols)
             for j, col in enumerate(cols):
@@ -438,54 +472,6 @@ if is_authenticated() and len(tabs) > 0:
                                            VALUES (?, ?, 'IN', 0, ?)''', (game_id, player, max_order + 1))
                                 conn.commit()
                                 st.rerun()
-        
-        # Use JavaScript with MutationObserver to force button colors - runs continuously
-        st.markdown("""
-            <script>
-            function styleRosterButtons() {
-                // Find all primary buttons (IN status) and make them green
-                document.querySelectorAll('button[data-testid="baseButton-primary"]').forEach(function(btn) {
-                    var text = btn.textContent.trim();
-                    if (text && btn.closest('div[data-testid="column"]') && !btn.hasAttribute('data-roster-styled')) {
-                        btn.style.setProperty('background-color', '#28a745', 'important');
-                        btn.style.setProperty('color', 'white', 'important');
-                        btn.style.setProperty('border-color', '#28a745', 'important');
-                        btn.style.setProperty('padding', '1px 3px', 'important');
-                        btn.style.setProperty('font-size', '0.4rem', 'important');
-                        btn.style.setProperty('min-height', '18px', 'important');
-                        btn.style.setProperty('height', '18px', 'important');
-                        btn.setAttribute('data-roster-styled', 'true');
-                    }
-                });
-                // Find all secondary buttons (OUT status) and make them red border only
-                document.querySelectorAll('button[data-testid="baseButton-secondary"]').forEach(function(btn) {
-                    var text = btn.textContent.trim();
-                    if (text && btn.closest('div[data-testid="column"]') && !btn.hasAttribute('data-roster-styled')) {
-                        btn.style.setProperty('background-color', 'transparent', 'important');
-                        btn.style.setProperty('color', '#dc3545', 'important');
-                        btn.style.setProperty('border-color', '#dc3545', 'important');
-                        btn.style.setProperty('border-width', '2px', 'important');
-                        btn.style.setProperty('border-style', 'solid', 'important');
-                        btn.style.setProperty('padding', '1px 3px', 'important');
-                        btn.style.setProperty('font-size', '0.4rem', 'important');
-                        btn.style.setProperty('min-height', '18px', 'important');
-                        btn.style.setProperty('height', '18px', 'important');
-                        btn.setAttribute('data-roster-styled', 'true');
-                    }
-                });
-            }
-            
-            // Run immediately and on interval
-            styleRosterButtons();
-            setInterval(styleRosterButtons, 200);
-            
-            // Also watch for DOM changes
-            var observer = new MutationObserver(function(mutations) {
-                styleRosterButtons();
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-            </script>
-        """, unsafe_allow_html=True)
         
         st.divider()
         
