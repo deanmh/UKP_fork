@@ -563,28 +563,38 @@ if is_authenticated() and len(tabs) > 0:
             with header_cols[2]:
                 st.markdown("**↓**")
             
-            # Single button to copy inning 1 to all other innings
-            if st.button("Copy Inning 1 to All", key="copy_all_innings", help="Copy lineup from Inning 1 to innings 2-7"):
-                # Get all positions from inning 1
-                c.execute('''SELECT position, player_name FROM lineup_positions 
-                            WHERE game_id = ? AND inning = 1''', (game_id,))
-                first_inning = c.fetchall()
-                
-                # Copy to innings 2-7
-                for inning_num in range(2, 8):
-                    # Clear current inning
-                    c.execute('''DELETE FROM lineup_positions 
-                               WHERE game_id = ? AND inning = ?''', (game_id, inning_num))
+            # Copy and Reset buttons
+            col_copy, col_reset = st.columns([1, 1])
+            with col_copy:
+                if st.button("Copy Inning 1 to All", key="copy_all_innings", help="Copy lineup from Inning 1 to innings 2-7"):
+                    # Get all positions from inning 1
+                    c.execute('''SELECT position, player_name FROM lineup_positions 
+                                WHERE game_id = ? AND inning = 1''', (game_id,))
+                    first_inning = c.fetchall()
                     
-                    # Copy positions
-                    for position, player in first_inning:
-                        if position:  # Only copy non-empty positions
-                            c.execute('''INSERT INTO lineup_positions 
-                                       (game_id, inning, position, player_name) 
-                                       VALUES (?, ?, ?, ?)''',
-                                     (game_id, inning_num, position, player))
-                conn.commit()
-                st.rerun()
+                    # Copy to innings 2-7
+                    for inning_num in range(2, 8):
+                        # Clear current inning
+                        c.execute('''DELETE FROM lineup_positions 
+                                   WHERE game_id = ? AND inning = ?''', (game_id, inning_num))
+                        
+                        # Copy positions
+                        for position, player in first_inning:
+                            if position:  # Only copy non-empty positions
+                                c.execute('''INSERT INTO lineup_positions 
+                                           (game_id, inning, position, player_name) 
+                                           VALUES (?, ?, ?, ?)''',
+                                         (game_id, inning_num, position, player))
+                    conn.commit()
+                    st.rerun()
+            
+            with col_reset:
+                if st.button("Reset Lineup", key="reset_lineup", help="Clear all position assignments"):
+                    # Clear all lineup positions for this game
+                    c.execute('''DELETE FROM lineup_positions 
+                               WHERE game_id = ?''', (game_id,))
+                    conn.commit()
+                    st.rerun()
             
             for i, col in enumerate(header_cols[3:10], 1):
                 with col:
@@ -950,10 +960,7 @@ with tabs[view_tab_idx]:
                         if position:
                             # Use abbreviation for display
                             abbrev = POSITION_ABBREVIATIONS.get(position, position)
-                            if position == "Out":
-                                row[f"Inning {inning}"] = f"🔴 {abbrev}"
-                            else:
-                                row[f"Inning {inning}"] = abbrev
+                            row[f"Inning {inning}"] = abbrev
                         else:
                             row[f"Inning {inning}"] = "-"
                     display_data.append(row)
@@ -961,10 +968,10 @@ with tabs[view_tab_idx]:
                 df = pd.DataFrame(display_data)
                 df = df.set_index(["Kick Order", "Player"])
                 
-                # Apply styling to highlight "Out" positions
+                # Apply styling to highlight "Out" positions with slightly transparent red
                 def highlight_out(val):
-                    if isinstance(val, str) and val.startswith("🔴"):
-                        return 'background-color: #ffcccc'
+                    if isinstance(val, str) and val == "Out":
+                        return 'background-color: rgba(220, 53, 69, 0.2)'
                     return ''
                 
                 styled_df = df.style.applymap(highlight_out)
