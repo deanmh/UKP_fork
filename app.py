@@ -360,8 +360,8 @@ if is_authenticated() and len(tabs) > 0:
         # Add very aggressive CSS for compact buttons with colors - target only roster section
         st.markdown("""
             <style>
-            /* Target buttons in Main Roster section only - very specific */
-            div[data-testid="column"]:has(button[key*="main_toggle"]) button {
+            /* Target buttons in Main Roster section - use roster-buttons-wrapper class */
+            .roster-buttons-wrapper button {
                 padding: 1px 3px !important;
                 font-size: 0.4rem !important;
                 min-height: 18px !important;
@@ -370,7 +370,7 @@ if is_authenticated() and len(tabs) > 0:
                 margin: 0px !important;
             }
             /* Green fill for IN buttons (primary type) - players that are IN */
-            div[data-testid="column"]:has(button[key*="main_toggle"]) button[kind="primary"] {
+            .roster-buttons-wrapper button[data-testid="baseButton-primary"] {
                 background-color: #28a745 !important;
                 color: white !important;
                 border-color: #28a745 !important;
@@ -380,12 +380,12 @@ if is_authenticated() and len(tabs) > 0:
                 min-height: 18px !important;
                 height: 18px !important;
             }
-            div[data-testid="column"]:has(button[key*="main_toggle"]) button[kind="primary"]:hover {
+            .roster-buttons-wrapper button[data-testid="baseButton-primary"]:hover {
                 background-color: #218838 !important;
                 border-color: #218838 !important;
             }
             /* Red border only for OUT buttons (secondary type) - players that are OUT */
-            div[data-testid="column"]:has(button[key*="main_toggle"]) button:not([kind="primary"]) {
+            .roster-buttons-wrapper button[data-testid="baseButton-secondary"] {
                 background-color: transparent !important;
                 background: transparent !important;
                 color: #dc3545 !important;
@@ -397,7 +397,7 @@ if is_authenticated() and len(tabs) > 0:
                 min-height: 18px !important;
                 height: 18px !important;
             }
-            div[data-testid="column"]:has(button[key*="main_toggle"]) button:not([kind="primary"]):hover {
+            .roster-buttons-wrapper button[data-testid="baseButton-secondary"]:hover {
                 background-color: rgba(220, 53, 69, 0.1) !important;
                 border-color: #c82333 !important;
                 color: #c82333 !important;
