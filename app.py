@@ -355,19 +355,26 @@ if is_authenticated() and len(tabs) > 0:
         
         # Compact grid view for main roster - 12 columns with minimal padding
         st.markdown("**Main Roster**")
-        # Add CSS for compact buttons - very specific to roster buttons only
+        # Add CSS for compact buttons - use class-based approach
         st.markdown("""
             <style>
-            /* Target only roster toggle buttons by their unique key */
-            button[data-testid="baseButton-primary"][aria-label*="main_toggle"],
-            button[data-testid="baseButton-secondary"][aria-label*="main_toggle"] {
-                padding: 0.02rem 0.15rem !important;
-                font-size: 0.55rem !important;
-                min-height: 0.8rem !important;
-                line-height: 0.9 !important;
+            /* Use a wrapper class to target buttons */
+            .roster-buttons-wrapper button {
+                padding: 0.01rem 0.1rem !important;
+                font-size: 0.5rem !important;
+                min-height: 0.7rem !important;
+                line-height: 0.85 !important;
                 vertical-align: middle !important;
             }
+            /* Direct targeting for all buttons in roster section */
+            div[data-testid="column"]:has(button[key*="main_toggle"]) button {
+                padding: 0.01rem 0.1rem !important;
+                font-size: 0.5rem !important;
+                min-height: 0.7rem !important;
+                line-height: 0.85 !important;
+            }
             </style>
+            <div class="roster-buttons-wrapper">
         """, unsafe_allow_html=True)
         
         # Create grid with 12 columns for very compact display
@@ -404,103 +411,7 @@ if is_authenticated() and len(tabs) > 0:
                                 conn.commit()
                                 st.rerun()
         
-        st.divider()
-        
-        # Substitutes section
-        st.markdown("**Substitutes**")
-        # Get substitutes from database
-        c.execute('SELECT player_name, is_female FROM substitutes ORDER BY player_name')
-        substitutes_list = c.fetchall()
-        
-        if substitutes_list:
-            # Display substitutes in compact grid
-            sub_list = []
-            for sub_name, is_female in substitutes_list:
-                sub_status = statuses.get(sub_name, {}).get('status', None)
-                sub_list.append((sub_name, sub_status, is_female))
-            
-            # Display in compact 12-column grid
-            for i in range(0, len(sub_list), num_cols):
-                cols = st.columns(num_cols)
-                for j, col in enumerate(cols):
-                    if i + j < len(sub_list):
-                        sub_name, sub_status, is_female = sub_list[i + j]
-                        with col:
-                            if sub_status is None:
-                                if st.button(sub_name, key=f"main_toggle_sub_{sub_name}", use_container_width=True):
-                                    # Get max kicking order to add at end
-                                    c.execute('''SELECT COALESCE(MAX(kicking_order), 0) 
-                                                FROM game_player_status 
-                                                WHERE game_id = ? AND status = 'IN' ''', (game_id,))
-                                    max_order = c.fetchone()[0] or 0
-                                    c.execute('''INSERT INTO game_player_status 
-                                               (game_id, player_name, status, is_substitute, kicking_order) 
-                                               VALUES (?, ?, 'IN', 1, ?)''', (game_id, sub_name, max_order + 1))
-                                    conn.commit()
-                                    st.rerun()
-                            elif sub_status == 'IN':
-                                if st.button(sub_name, key=f"main_toggle_sub_{sub_name}", use_container_width=True, type="primary"):
-                                    c.execute('''UPDATE game_player_status SET status = 'OUT', kicking_order = NULL 
-                                               WHERE game_id = ? AND player_name = ?''', (game_id, sub_name))
-                                    conn.commit()
-                                    st.rerun()
-                            else:
-                                if st.button(sub_name, key=f"main_toggle_sub_{sub_name}", use_container_width=True):
-                                    # Get max kicking order to add at end
-                                    c.execute('''SELECT COALESCE(MAX(kicking_order), 0) 
-                                                FROM game_player_status 
-                                                WHERE game_id = ? AND status = 'IN' ''', (game_id,))
-                                    max_order = c.fetchone()[0] or 0
-                                    c.execute('''UPDATE game_player_status SET status = 'IN', kicking_order = ? 
-                                               WHERE game_id = ? AND player_name = ?''', (max_order + 1, game_id, sub_name))
-                                    conn.commit()
-                                    st.rerun()
-        else:
-            st.info("No substitutes available. Add them below.")
-        
-        st.divider()
-        
-        # Add/Edit Substitutes
-        st.markdown("**Manage Substitutes**")
-        with st.form("add_substitute_form"):
-            new_sub_name = st.text_input("Substitute Name")
-            is_female_sub = st.checkbox("Female", key="new_sub_female")
-            submit_sub = st.form_submit_button("Add Substitute")
-            
-            if submit_sub and new_sub_name:
-                if new_sub_name.strip():
-                    try:
-                        c.execute('INSERT INTO substitutes (player_name, is_female) VALUES (?, ?)',
-                                 (new_sub_name.strip(), 1 if is_female_sub else 0))
-                        conn.commit()
-                        st.success(f"Added {new_sub_name} to substitutes")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Substitute already exists")
-        
-        # List and manage existing substitutes
-        if substitutes_list:
-            st.markdown("**Edit Substitutes**")
-            for sub_name, is_female in substitutes_list:
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    gender_indicator = "♀" if is_female else ""
-                    st.write(f"{sub_name} {gender_indicator}")
-                with col2:
-                    gender_text = "♀" if is_female else "♂"
-                    if st.button(gender_text, key=f"toggle_sub_{sub_name}", help="Toggle gender"):
-                        # Toggle gender
-                        new_gender = 0 if is_female else 1
-                        c.execute('UPDATE substitutes SET is_female = ? WHERE player_name = ?',
-                                 (new_gender, sub_name))
-                        conn.commit()
-                        st.rerun()
-                with col3:
-                    if st.button("Delete", key=f"del_sub_{sub_name}"):
-                        c.execute('DELETE FROM substitutes WHERE player_name = ?', (sub_name,))
-                        conn.commit()
-                        st.rerun()
-        
+        st.markdown("</div>", unsafe_allow_html=True)
         st.divider()
         
         # Get available players (IN status) with kicking order
@@ -619,7 +530,7 @@ if is_authenticated() and len(tabs) > 0:
             
             # Create dataframe-style interface
             # Header row - with up/down buttons and sit-out count
-            header_cols = st.columns([2, 0.4, 0.4] + [1] * 7 + [0.6])  # Player + up/down + 7 innings + sit-out count
+            header_cols = st.columns([2, 0.5, 0.5] + [1] * 7 + [0.6])  # Player + up/down + 7 innings + sit-out count
             with header_cols[0]:
                 st.markdown("**Player**")
             with header_cols[1]:
@@ -685,7 +596,7 @@ if is_authenticated() and len(tabs) > 0:
             order_changed = False
             
             for player_idx, player in enumerate(available_players_sorted):
-                row_cols = st.columns([2, 0.4, 0.4] + [1] * 7 + [0.6])
+                row_cols = st.columns([2, 0.5, 0.5] + [1] * 7 + [0.6])
                 
                 with row_cols[0]:
                     is_female = player_genders.get(player, False)
@@ -862,6 +773,94 @@ if is_authenticated() and len(tabs) > 1:
         else:
             st.info("No players in main roster yet.")
         
+        st.divider()
+        
+        # Substitutes section
+        st.markdown("**Substitutes**")
+        conn_sub = sqlite3.connect(DB_NAME)
+        c_sub = conn_sub.cursor()
+        
+        # Get substitutes from database
+        c_sub.execute('SELECT player_name, is_female FROM substitutes ORDER BY player_name')
+        substitutes_list = c_sub.fetchall()
+        
+        if substitutes_list:
+            # Display substitutes in compact grid
+            # Add CSS for compact buttons - same as main roster
+            st.markdown("""
+                <style>
+                /* Target only substitute toggle buttons */
+                button[data-testid="baseButton-primary"][aria-label*="main_toggle_sub"],
+                button[data-testid="baseButton-secondary"][aria-label*="main_toggle_sub"] {
+                    padding: 0.02rem 0.15rem !important;
+                    font-size: 0.55rem !important;
+                    min-height: 0.8rem !important;
+                    line-height: 0.9 !important;
+                    vertical-align: middle !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            sub_list = []
+            for sub_name, is_female in substitutes_list:
+                sub_list.append((sub_name, is_female))
+            
+            # Display in compact 12-column grid
+            num_cols_sub = 12
+            for i in range(0, len(sub_list), num_cols_sub):
+                cols = st.columns(num_cols_sub)
+                for j, col in enumerate(cols):
+                    if i + j < len(sub_list):
+                        sub_name, is_female = sub_list[i + j]
+                        with col:
+                            st.button(sub_name, key=f"sub_display_{sub_name}", use_container_width=True, disabled=True)
+        else:
+            st.info("No substitutes available. Add them below.")
+        
+        st.divider()
+        
+        # Add/Edit Substitutes
+        st.markdown("**Manage Substitutes**")
+        with st.form("add_substitute_form"):
+            new_sub_name = st.text_input("Substitute Name")
+            is_female_sub = st.checkbox("Female", key="new_sub_female")
+            submit_sub = st.form_submit_button("Add Substitute")
+            
+            if submit_sub and new_sub_name:
+                if new_sub_name.strip():
+                    try:
+                        c_sub.execute('INSERT INTO substitutes (player_name, is_female) VALUES (?, ?)',
+                                 (new_sub_name.strip(), 1 if is_female_sub else 0))
+                        conn_sub.commit()
+                        st.success(f"Added {new_sub_name} to substitutes")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Substitute already exists")
+        
+        # List and manage existing substitutes
+        if substitutes_list:
+            st.markdown("**Edit Substitutes**")
+            for sub_name, is_female in substitutes_list:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    gender_indicator = "♀" if is_female else ""
+                    st.write(f"{sub_name} {gender_indicator}")
+                with col2:
+                    gender_text = "♀" if is_female else "♂"
+                    if st.button(gender_text, key=f"toggle_sub_{sub_name}", help="Toggle gender"):
+                        # Toggle gender
+                        new_gender = 0 if is_female else 1
+                        c_sub.execute('UPDATE substitutes SET is_female = ? WHERE player_name = ?',
+                                 (new_gender, sub_name))
+                        conn_sub.commit()
+                        st.rerun()
+                with col3:
+                    if st.button("Delete", key=f"del_sub_{sub_name}"):
+                        c_sub.execute('DELETE FROM substitutes WHERE player_name = ?', (sub_name,))
+                        conn_sub.commit()
+                        st.rerun()
+        
+        conn_sub.close()
         conn.close()
 
 # ========== VIEW LINEUP TAB ==========
