@@ -360,50 +360,44 @@ if is_authenticated() and len(tabs) > 0:
         # Add very aggressive CSS for compact buttons with colors - target only roster section
         st.markdown("""
             <style>
-            /* Target buttons in Main Roster section - use roster-buttons-wrapper class */
-            .roster-buttons-wrapper button {
+            /* Target ALL buttons in columns within roster section - very aggressive */
+            div[data-testid="column"] button[data-testid="baseButton-primary"] {
                 padding: 1px 3px !important;
                 font-size: 0.4rem !important;
                 min-height: 18px !important;
                 height: 18px !important;
                 line-height: 1 !important;
                 margin: 0px !important;
-            }
-            /* Green fill for IN buttons (primary type) - players that are IN */
-            .roster-buttons-wrapper button[data-testid="baseButton-primary"] {
                 background-color: #28a745 !important;
                 color: white !important;
                 border-color: #28a745 !important;
                 border-width: 1px !important;
-                padding: 1px 3px !important;
-                font-size: 0.4rem !important;
-                min-height: 18px !important;
-                height: 18px !important;
             }
-            .roster-buttons-wrapper button[data-testid="baseButton-primary"]:hover {
+            div[data-testid="column"] button[data-testid="baseButton-primary"]:hover {
                 background-color: #218838 !important;
                 border-color: #218838 !important;
             }
             /* Red border only for OUT buttons (secondary type) - players that are OUT */
-            .roster-buttons-wrapper button[data-testid="baseButton-secondary"] {
+            div[data-testid="column"] button[data-testid="baseButton-secondary"] {
+                padding: 1px 3px !important;
+                font-size: 0.4rem !important;
+                min-height: 18px !important;
+                height: 18px !important;
+                line-height: 1 !important;
+                margin: 0px !important;
                 background-color: transparent !important;
                 background: transparent !important;
                 color: #dc3545 !important;
                 border-color: #dc3545 !important;
                 border-width: 2px !important;
                 border-style: solid !important;
-                padding: 1px 3px !important;
-                font-size: 0.4rem !important;
-                min-height: 18px !important;
-                height: 18px !important;
             }
-            .roster-buttons-wrapper button[data-testid="baseButton-secondary"]:hover {
+            div[data-testid="column"] button[data-testid="baseButton-secondary"]:hover {
                 background-color: rgba(220, 53, 69, 0.1) !important;
                 border-color: #c82333 !important;
                 color: #c82333 !important;
             }
             </style>
-            <div class="roster-buttons-wrapper">
         """, unsafe_allow_html=True)
         
         # Create grid with 12 columns for very compact display
@@ -440,7 +434,6 @@ if is_authenticated() and len(tabs) > 0:
                                 conn.commit()
                                 st.rerun()
         
-        st.markdown("</div>", unsafe_allow_html=True)
         st.divider()
         
         # Get available players (IN status) with kicking order
