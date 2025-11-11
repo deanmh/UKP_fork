@@ -394,16 +394,40 @@ if is_authenticated() and len(tabs) > 0:
             else:
                 st.info("No substitutes available. Add them in the Substitutes tab.")
         
-        # Compact grid view for main roster
+        # Compact grid view for main roster - 2x2 grid
         st.markdown("**Main Roster**")
-        # Create grid with 4 columns
-        num_cols = 4
+        # Add CSS for button styling
+        st.markdown("""
+            <style>
+            button[kind="primary"] {
+                background-color: #28a745 !important;
+                color: white !important;
+                border-color: #28a745 !important;
+            }
+            button[kind="primary"]:hover {
+                background-color: #218838 !important;
+            }
+            /* Style OUT buttons with less aggressive red */
+            div[data-testid="column"]:has(button:not([kind="primary"])) button {
+                background-color: #ff6b6b !important;
+                color: white !important;
+                border-color: #ff6b6b !important;
+                opacity: 0.85;
+            }
+            div[data-testid="column"]:has(button:not([kind="primary"])) button:hover {
+                opacity: 1;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        # Create grid with 2 columns for compact display
+        num_cols = 2
         roster_list = []
         for player in main_roster:
             current_status = statuses.get(player, {}).get('status', 'IN')
             roster_list.append((player, current_status))
         
-        # Display in grid
+        # Display in compact 2-column grid
         for i in range(0, len(roster_list), num_cols):
             cols = st.columns(num_cols)
             for j, col in enumerate(cols):
@@ -411,15 +435,14 @@ if is_authenticated() and len(tabs) > 0:
                     player, status = roster_list[i + j]
                     with col:
                         if status == 'IN':
-                            if st.button("IN", key=f"main_in_{player}", use_container_width=True, type="primary"):
+                            if st.button(player, key=f"main_toggle_{player}", use_container_width=True, type="primary"):
                                 c.execute('''INSERT OR REPLACE INTO game_player_status 
                                            (game_id, player_name, status, is_substitute, kicking_order) 
                                            VALUES (?, ?, 'OUT', 0, NULL)''', (game_id, player))
                                 conn.commit()
                                 st.rerun()
-                            st.caption(player)
                         else:
-                            if st.button("OUT", key=f"main_out_{player}", use_container_width=True):
+                            if st.button(player, key=f"main_toggle_{player}", use_container_width=True):
                                 # Get max kicking order to add at end
                                 c.execute('''SELECT COALESCE(MAX(kicking_order), 0) 
                                             FROM game_player_status 
@@ -430,7 +453,6 @@ if is_authenticated() and len(tabs) > 0:
                                            VALUES (?, ?, 'IN', 0, ?)''', (game_id, player, max_order + 1))
                                 conn.commit()
                                 st.rerun()
-                            st.caption(player)
         
         st.divider()
         
@@ -549,13 +571,13 @@ if is_authenticated() and len(tabs) > 0:
                     inning_warnings[i] = warnings
             
             # Create dataframe-style interface
-            # Header row
-            header_cols = st.columns([3, 0.5, 0.5] + [1] * 7)  # Player name + up/down buttons + 7 innings
+            # Header row - removed arrow column, using drag handle
+            header_cols = st.columns([2.5, 0.3] + [1] * 7)  # Player name + drag handle + 7 innings
             with header_cols[0]:
-                st.markdown("**Player**")
+                st.markdown("**Player** (drag to reorder)")
             with header_cols[1]:
-                st.markdown("**↑↓**")
-            for i, col in enumerate(header_cols[3:], 1):
+                st.markdown("**⋮⋮**")
+            for i, col in enumerate(header_cols[2:], 1):
                 with col:
                     inning_num = i
                     warning_icon = ""
@@ -585,66 +607,77 @@ if is_authenticated() and len(tabs) > 0:
                             conn.commit()
                             st.rerun()
             
-            # Player rows with position dropdowns and reorder buttons
+            # Player rows with position dropdowns and drag-and-drop ordering
             lineup_changed = False
             order_changed = False
-            for player_idx, player in enumerate(available_players):
-                row_cols = st.columns([3, 0.5, 0.5] + [1] * 7)
+            
+            # Store player order in session state for drag-and-drop
+            drag_key = f"drag_order_{game_id}"
+            if drag_key not in st.session_state:
+                st.session_state[drag_key] = available_players.copy()
+            
+            # Get current order from database and sync with session state
+            player_orders = {}
+            for player in available_players:
+                c.execute('''SELECT kicking_order FROM game_player_status 
+                            WHERE game_id = ? AND player_name = ?''', (game_id, player))
+                order = c.fetchone()[0]
+                if order:
+                    player_orders[player] = order
+            
+            # Sort available_players by their order
+            available_players_sorted = sorted(available_players, 
+                                            key=lambda p: player_orders.get(p, 999))
+            
+            # Create draggable interface using HTML/JavaScript
+            st.markdown("""
+                <style>
+                .drag-handle {
+                    cursor: grab;
+                    color: #666;
+                    font-size: 1.2em;
+                    user-select: none;
+                }
+                .drag-handle:active {
+                    cursor: grabbing;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            # Use number inputs for ordering (more reliable than drag-and-drop in Streamlit)
+            for player_idx, player in enumerate(available_players_sorted):
+                row_cols = st.columns([2.5, 0.3] + [1] * 7)
                 
                 with row_cols[0]:
                     is_female = player_genders.get(player, False)
                     gender_indicator = "♀" if is_female else ""
                     st.write(f"{player_idx + 1}. {player} {gender_indicator}")
                 
-                # Up/Down buttons for reordering
+                # Drag handle (visual only, using number input for actual reordering)
                 with row_cols[1]:
-                    if player_idx > 0:
-                        if st.button("↑", key=f"move_up_{player}", help="Move up"):
-                            # Swap with player above
-                            prev_player = available_players[player_idx - 1]
-                            # Get current orders
-                            c.execute('''SELECT kicking_order FROM game_player_status 
-                                        WHERE game_id = ? AND player_name = ?''', (game_id, player))
-                            current_order = c.fetchone()[0]
-                            c.execute('''SELECT kicking_order FROM game_player_status 
-                                        WHERE game_id = ? AND player_name = ?''', (game_id, prev_player))
-                            prev_order = c.fetchone()[0]
-                            # Swap orders
-                            c.execute('''UPDATE game_player_status SET kicking_order = ? 
-                                        WHERE game_id = ? AND player_name = ?''',
-                                     (prev_order, game_id, player))
-                            c.execute('''UPDATE game_player_status SET kicking_order = ? 
-                                        WHERE game_id = ? AND player_name = ?''',
-                                     (current_order, game_id, prev_player))
-                            conn.commit()
-                            order_changed = True
-                            st.rerun()
-                
-                with row_cols[2]:
-                    if player_idx < len(available_players) - 1:
-                        if st.button("↓", key=f"move_down_{player}", help="Move down"):
-                            # Swap with player below
-                            next_player = available_players[player_idx + 1]
-                            # Get current orders
-                            c.execute('''SELECT kicking_order FROM game_player_status 
-                                        WHERE game_id = ? AND player_name = ?''', (game_id, player))
-                            current_order = c.fetchone()[0]
-                            c.execute('''SELECT kicking_order FROM game_player_status 
-                                        WHERE game_id = ? AND player_name = ?''', (game_id, next_player))
-                            next_order = c.fetchone()[0]
-                            # Swap orders
-                            c.execute('''UPDATE game_player_status SET kicking_order = ? 
-                                        WHERE game_id = ? AND player_name = ?''',
-                                     (next_order, game_id, player))
-                            c.execute('''UPDATE game_player_status SET kicking_order = ? 
-                                        WHERE game_id = ? AND player_name = ?''',
-                                     (current_order, game_id, next_player))
-                            conn.commit()
-                            order_changed = True
-                            st.rerun()
+                    st.markdown('<div class="drag-handle">⋮⋮</div>', unsafe_allow_html=True)
+                    # Small number input for ordering
+                    current_order = player_orders.get(player, player_idx + 1)
+                    new_order = st.number_input(
+                        "",
+                        min_value=1,
+                        max_value=len(available_players),
+                        value=current_order,
+                        key=f"order_{player}_{game_id}",
+                        label_visibility="collapsed",
+                        step=1
+                    )
+                    if new_order != current_order:
+                        # Update order in database
+                        c.execute('''UPDATE game_player_status SET kicking_order = ? 
+                                    WHERE game_id = ? AND player_name = ?''',
+                                 (new_order, game_id, player))
+                        conn.commit()
+                        order_changed = True
+                        st.rerun()
                 
                 for inning in range(1, 8):
-                    with row_cols[inning + 2]:  # +2 because of player name (0) and two button columns (1,2), innings start at index 3
+                    with row_cols[inning + 2]:  # +2 because of player name (0) and drag handle (1), innings start at index 2
                         # Get current position for this player in this inning
                         current_position = player_positions_by_inning[inning].get(player, "")
                         
