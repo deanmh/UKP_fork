@@ -57,7 +57,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Database setup
-DB_NAME = "kickball_roster.db"
+import os
+# Use /app/data directory if it exists (Docker), otherwise current directory
+if os.path.exists("/app/data"):
+    os.makedirs("/app/data", exist_ok=True)
+    DB_NAME = "/app/data/kickball_roster.db"
+else:
+    os.makedirs("data", exist_ok=True)
+    DB_NAME = "data/kickball_roster.db"
 
 def init_db():
     """Initialize the database with required tables"""
@@ -274,7 +281,10 @@ try:
     init_db()
 except Exception as e:
     st.error(f"Database initialization error: {e}")
-    st.stop()
+    import traceback
+    st.code(traceback.format_exc())
+    # Don't stop - allow the app to continue with a warning
+    st.warning("App is running in limited mode. Some features may not work.")
 
 # Initialize session state
 if 'authenticated' not in st.session_state:
