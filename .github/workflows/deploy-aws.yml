@@ -56,8 +56,7 @@ jobs:
       - name: Create or Update App Runner service
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
         run: |
           set -e
           
@@ -70,6 +69,13 @@ jobs:
           echo "ECR Registry: $ECR_REGISTRY"
           echo "Image URI: $IMAGE_URI"
           echo "Role ARN: $ROLE_ARN"
+          
+          # Verify image exists
+          echo "Verifying image exists in ECR..."
+          aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY }} --image-ids imageTag=latest --region ${{ env.AWS_REGION }} || {
+            echo "Error: Image with tag 'latest' not found in ECR"
+            exit 1
+          }
           
           # Create service source configuration
           cat > /tmp/new-source-config.json <<EOF
