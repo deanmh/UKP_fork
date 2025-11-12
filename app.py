@@ -211,8 +211,7 @@ DB_NAME = "kickball_roster.db"
 
 def init_db():
     """Initialize the database with required tables"""
-    try:
-        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     c = conn.cursor()
     
     # Migrate: Remove UNIQUE constraint from lineup_positions if it exists
