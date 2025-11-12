@@ -56,9 +56,11 @@ jobs:
       - name: Create or Update App Runner service
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
         run: |
           set -e
+          
+          # Construct image URI
+          IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest"
           
           # Get current service configuration
           SERVICE_ARN=$(aws apprunner list-services --region ${{ env.AWS_REGION }} --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE }}'].ServiceArn" --output text)
@@ -77,11 +79,10 @@ jobs:
             exit 1
           }
           
-          # Create service source configuration
-          cat > /tmp/new-source-config.json <<EOF
-          {
+          # Create service source configuration using printf to avoid heredoc variable issues
+          printf '{
             "ImageRepository": {
-              "ImageIdentifier": "$IMAGE_URI",
+              "ImageIdentifier": "%s",
               "ImageConfiguration": {
                 "Port": "8501",
                 "RuntimeEnvironmentVariables": {
@@ -94,10 +95,12 @@ jobs:
             },
             "AutoDeploymentsEnabled": false,
             "AuthenticationConfiguration": {
-              "AccessRoleArn": "$ROLE_ARN"
+              "AccessRoleArn": "%s"
             }
-          }
-          EOF
+          }' "$IMAGE_URI" "$ROLE_ARN" > /tmp/new-source-config.json
+          
+          echo "Service configuration:"
+          cat /tmp/new-source-config.json
           
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" == "None" ]; then
             echo "Service not found. Creating new service..."
