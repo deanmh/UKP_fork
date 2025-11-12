@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
+# Ensure .streamlit config directory exists
+RUN mkdir -p .streamlit
+
 # Create directory for database
 RUN mkdir -p /app/data
 
