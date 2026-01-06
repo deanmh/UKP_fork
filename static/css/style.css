@@ -808,6 +808,64 @@ h4 { font-size: 1.25rem; }
 }
 
 /* ========================================
+   Publish Section
+   ======================================== */
+.publish-card {
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-tertiary) 100%);
+    border: 2px solid var(--border-color);
+}
+
+.publish-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    flex-wrap: wrap;
+}
+
+.publish-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.publish-status.published {
+    background: var(--accent-green-light);
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+}
+
+.publish-status.unpublished {
+    background: rgba(149, 165, 166, 0.1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.publish-status-icon {
+    font-size: 1.25rem;
+}
+
+.publish-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.unpublished-banner {
+    background: rgba(243, 156, 18, 0.15);
+    border: 1px solid var(--warning);
+    color: var(--warning);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+    text-align: center;
+    font-weight: 500;
+}
+
+/* ========================================
    View Lineup (Read-only)
    ======================================== */
 .game-selector {

@@ -267,7 +267,40 @@ function renderGameLineup() {
         ? `<img src="/logos/${currentLogo}" alt="Team Logo">`
         : '<span class="text-muted">No logo uploaded</span>';
     
+    // Build publish status section
+    const isPublished = state.currentGame.is_published;
+    const publishedAt = state.currentGame.published_at;
+    const publishStatusHtml = isPublished
+        ? `<div class="publish-status published">
+             <span class="publish-status-icon">✓</span>
+             <span>Published${publishedAt ? ` on ${new Date(publishedAt).toLocaleString()}` : ''}</span>
+           </div>`
+        : `<div class="publish-status unpublished">
+             <span class="publish-status-icon">○</span>
+             <span>Not Published - Lineup is not visible to the public</span>
+           </div>`;
+    
+    const publishButtonHtml = isPublished
+        ? `<button class="btn btn-secondary" onclick="unpublishLineup()">
+             Unpublish Lineup
+           </button>
+           <button class="btn btn-success" onclick="publishLineup()">
+             Update Published Lineup
+           </button>`
+        : `<button class="btn btn-success" onclick="publishLineup()">
+             Publish Lineup
+           </button>`;
+    
     panel.innerHTML = `
+        <div class="card publish-card">
+            <div class="publish-section">
+                ${publishStatusHtml}
+                <div class="publish-actions">
+                    ${publishButtonHtml}
+                </div>
+            </div>
+        </div>
+        
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">Game Details</h3>
@@ -669,6 +702,40 @@ function toggleCollapsible(header) {
     content.classList.toggle('expanded');
 }
 
+async function publishLineup() {
+    try {
+        await api(`/api/games/${state.currentGame.id}/publish`, { method: 'POST' });
+        
+        // Update local state
+        state.currentGame.is_published = true;
+        state.currentGame.published_at = new Date().toISOString();
+        
+        // Re-render to show updated status
+        renderGameLineup();
+    } catch (error) {
+        console.error('Failed to publish lineup:', error);
+        alert('Failed to publish lineup: ' + error.message);
+    }
+}
+
+async function unpublishLineup() {
+    if (!confirm('Unpublish this lineup? It will no longer be visible to the public.')) return;
+    
+    try {
+        await api(`/api/games/${state.currentGame.id}/unpublish`, { method: 'POST' });
+        
+        // Update local state
+        state.currentGame.is_published = false;
+        state.currentGame.published_at = null;
+        
+        // Re-render to show updated status
+        renderGameLineup();
+    } catch (error) {
+        console.error('Failed to unpublish lineup:', error);
+        alert('Failed to unpublish lineup: ' + error.message);
+    }
+}
+
 // ========================================
 // Roster Management Functions
 // ========================================
@@ -911,20 +978,31 @@ async function renderViewLineup(gameId) {
     const game = state.games.find(g => g.id === gameId);
     if (!game) return;
     
-    // Get lineup data
-    const lineupData = await api(`/api/games/${gameId}/lineup`);
+    // Get published lineup data (for public view) or regular lineup (for authenticated users)
+    let lineupData;
+    if (state.authenticated) {
+        // Authenticated users can see unpublished lineups
+        lineupData = await api(`/api/games/${gameId}/lineup`);
+        lineupData.published = true; // Mark as viewable
+    } else {
+        // Public view only shows published lineups
+        lineupData = await api(`/api/games/${gameId}/lineup/published`);
+    }
     
-    // Build game selector
+    // Build game selector - show publish status for authenticated users
     const gameSelectorHtml = `
         <div class="game-selector">
             <label class="form-group">
                 <span>Select Game</span>
                 <select class="form-select" onchange="changeViewGame(this.value)">
-                    ${state.games.map(g => `
-                        <option value="${g.id}" ${g.id === gameId ? 'selected' : ''}>
-                            ${g.game_date} - ${g.team_name} vs ${g.opponent_name || 'TBD'}
-                        </option>
-                    `).join('')}
+                    ${state.games.map(g => {
+                        const publishIndicator = g.is_published ? '✓' : '○';
+                        return `
+                            <option value="${g.id}" ${g.id === gameId ? 'selected' : ''}>
+                                ${state.authenticated ? publishIndicator + ' ' : ''}${g.game_date} - ${g.team_name} vs ${g.opponent_name || 'TBD'}
+                            </option>
+                        `;
+                    }).join('')}
                 </select>
             </label>
         </div>
@@ -938,7 +1016,14 @@ async function renderViewLineup(gameId) {
     // Build view table
     let tableHtml = '';
     
-    if (lineupData.availablePlayers.length === 0) {
+    // Check if lineup is published (for public view)
+    if (!lineupData.published) {
+        tableHtml = `<div class="empty-state">
+            <div class="empty-state-icon">🔒</div>
+            <p>Lineup not yet published</p>
+            <p class="text-muted">Check back later for the lineup.</p>
+        </div>`;
+    } else if (lineupData.availablePlayers.length === 0) {
         tableHtml = `<div class="empty-state"><div class="empty-state-icon">👥</div><p>No lineup set for this game</p></div>`;
     } else {
         let headerRow = '<tr><th>#</th><th>Player</th>';
@@ -971,6 +1056,13 @@ async function renderViewLineup(gameId) {
         `;
     }
     
+    // Show publish status banner for authenticated users viewing unpublished game
+    const unpublishedBanner = state.authenticated && !game.is_published
+        ? `<div class="unpublished-banner">
+             <span>⚠️ This lineup is not published - only you can see it</span>
+           </div>`
+        : '';
+    
     panel.innerHTML = `
         ${gameSelectorHtml}
         
@@ -981,6 +1073,8 @@ async function renderViewLineup(gameId) {
             </div>
             ${logoHtml}
         </div>
+        
+        ${unpublishedBanner}
         
         <div class="card">
             ${tableHtml}

@@ -126,6 +126,29 @@ def init_db():
         )
     ''')
     
+    # Published lineup snapshot
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS published_lineup (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id INTEGER NOT NULL,
+            inning INTEGER NOT NULL CHECK(inning BETWEEN 1 AND 7),
+            position TEXT NOT NULL,
+            player_name TEXT,
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    
+    # Published player order snapshot
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS published_player_order (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id INTEGER NOT NULL,
+            player_name TEXT NOT NULL,
+            kicking_order INTEGER,
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     migrate_db()
@@ -172,6 +195,19 @@ def migrate_db():
         columns = [row[1] for row in c.fetchall()]
         if 'team_logo' not in columns:
             c.execute('ALTER TABLE games ADD COLUMN team_logo TEXT')
+            conn.commit()
+    except:
+        pass
+    
+    # Add is_published and published_at columns to games if missing
+    try:
+        c.execute("PRAGMA table_info(games)")
+        columns = [row[1] for row in c.fetchall()]
+        if 'is_published' not in columns:
+            c.execute('ALTER TABLE games ADD COLUMN is_published BOOLEAN DEFAULT 0')
+            conn.commit()
+        if 'published_at' not in columns:
+            c.execute('ALTER TABLE games ADD COLUMN published_at TIMESTAMP')
             conn.commit()
     except:
         pass
@@ -413,7 +449,7 @@ def toggle_substitute_gender(name):
 def get_games():
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games ORDER BY game_date DESC')
+    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games ORDER BY game_date DESC')
     games = [dict(row) for row in c.fetchall()]
     conn.close()
     return jsonify(games)
@@ -425,20 +461,22 @@ def get_current_game():
     c = conn.cursor()
     
     next_thursday = get_next_thursday().date()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games WHERE game_date = ?',
+    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE game_date = ?',
               (next_thursday,))
     game = c.fetchone()
     
     if not game:
         # Create new game
-        c.execute('INSERT INTO games (game_date, team_name, opponent_name) VALUES (?, ?, ?)',
+        c.execute('INSERT INTO games (game_date, team_name, opponent_name, is_published) VALUES (?, ?, ?, 0)',
                   (next_thursday, "Unsolicited Kick Pics", ""))
         game_id = c.lastrowid
         conn.commit()
         game = {'id': game_id, 'game_date': str(next_thursday), 
-                'team_name': "Unsolicited Kick Pics", 'opponent_name': "", 'team_logo': None}
+                'team_name': "Unsolicited Kick Pics", 'opponent_name': "", 'team_logo': None,
+                'is_published': False, 'published_at': None}
     else:
         game = dict(game)
+        game['is_published'] = bool(game.get('is_published'))
     
     conn.close()
     return jsonify(game)
@@ -448,12 +486,14 @@ def get_current_game():
 def get_game(game_id):
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games WHERE id = ?', (game_id,))
+    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE id = ?', (game_id,))
     game = c.fetchone()
     conn.close()
     
     if game:
-        return jsonify(dict(game))
+        game_dict = dict(game)
+        game_dict['is_published'] = bool(game_dict.get('is_published'))
+        return jsonify(game_dict)
     return jsonify({'error': 'Game not found'}), 404
 
 
@@ -764,6 +804,119 @@ def update_player_order(game_id, player_name):
     
     conn.close()
     return jsonify({'success': True})
+
+
+# ========== Publish Routes ==========
+@app.route('/api/games/<int:game_id>/publish', methods=['POST'])
+@login_required
+def publish_lineup(game_id):
+    """Publish the current lineup, making it visible to the public"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Clear existing published data for this game
+    c.execute('DELETE FROM published_lineup WHERE game_id = ?', (game_id,))
+    c.execute('DELETE FROM published_player_order WHERE game_id = ?', (game_id,))
+    
+    # Copy current lineup to published
+    c.execute('''INSERT INTO published_lineup (game_id, inning, position, player_name)
+                SELECT game_id, inning, position, player_name FROM lineup_positions WHERE game_id = ?''',
+              (game_id,))
+    
+    # Copy current player order to published
+    c.execute('''INSERT INTO published_player_order (game_id, player_name, kicking_order)
+                SELECT game_id, player_name, kicking_order FROM game_player_status 
+                WHERE game_id = ? AND status = 'IN' ''', (game_id,))
+    
+    # Mark game as published
+    c.execute('''UPDATE games SET is_published = 1, published_at = CURRENT_TIMESTAMP WHERE id = ?''',
+              (game_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'published': True})
+
+
+@app.route('/api/games/<int:game_id>/unpublish', methods=['POST'])
+@login_required
+def unpublish_lineup(game_id):
+    """Unpublish the lineup, hiding it from public view"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Clear published data
+    c.execute('DELETE FROM published_lineup WHERE game_id = ?', (game_id,))
+    c.execute('DELETE FROM published_player_order WHERE game_id = ?', (game_id,))
+    
+    # Mark game as unpublished
+    c.execute('''UPDATE games SET is_published = 0, published_at = NULL WHERE id = ?''', (game_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'published': False})
+
+
+@app.route('/api/games/<int:game_id>/lineup/published', methods=['GET'])
+def get_published_lineup(game_id):
+    """Get the published lineup for public viewing"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Check if game is published
+    c.execute('SELECT is_published FROM games WHERE id = ?', (game_id,))
+    game = c.fetchone()
+    
+    if not game or not game['is_published']:
+        conn.close()
+        return jsonify({
+            'published': False,
+            'availablePlayers': [],
+            'genders': {},
+            'lineup': {},
+            'sitOutCounts': {},
+            'positions': POSITIONS,
+            'abbreviations': POSITION_ABBREVIATIONS
+        })
+    
+    # Get published player order
+    c.execute('''SELECT player_name, kicking_order FROM published_player_order 
+                WHERE game_id = ? ORDER BY kicking_order, player_name''', (game_id,))
+    available_players = [row['player_name'] for row in c.fetchall()]
+    
+    # Get player genders
+    c.execute('SELECT player_name, is_female FROM main_roster')
+    genders = {row['player_name']: bool(row['is_female']) for row in c.fetchall()}
+    c.execute('SELECT player_name, is_female FROM substitutes')
+    for row in c.fetchall():
+        genders[row['player_name']] = bool(row['is_female'])
+    
+    # Get published lineup positions
+    c.execute('''SELECT inning, position, player_name FROM published_lineup 
+                WHERE game_id = ? ORDER BY inning, position''', (game_id,))
+    lineup = {}
+    for row in c.fetchall():
+        inning = row['inning']
+        if inning not in lineup:
+            lineup[inning] = {}
+        lineup[inning][row['player_name']] = row['position']
+    
+    # Get sit-out counts from published lineup
+    c.execute('''SELECT player_name, COUNT(*) as cnt FROM published_lineup 
+                WHERE game_id = ? AND position = 'Out' GROUP BY player_name''', (game_id,))
+    sitOutCounts = {row['player_name']: row['cnt'] for row in c.fetchall()}
+    
+    conn.close()
+    return jsonify({
+        'published': True,
+        'availablePlayers': available_players,
+        'genders': genders,
+        'lineup': lineup,
+        'sitOutCounts': sitOutCounts,
+        'positions': POSITIONS,
+        'abbreviations': POSITION_ABBREVIATIONS
+    })
 
 
 if __name__ == '__main__':
