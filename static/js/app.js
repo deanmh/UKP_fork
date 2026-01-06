@@ -504,10 +504,33 @@ async function togglePlayerStatus(playerName) {
         }
         state.playerStatuses[playerName].status = result.newStatus;
         
-        // Reload lineup data
-        await loadGameLineup();
+        // Update just the button that was clicked (no full page refresh)
+        const buttons = document.querySelectorAll('.player-toggle');
+        buttons.forEach(btn => {
+            if (btn.textContent.trim().replace(' ♀', '') === playerName) {
+                btn.classList.remove('status-in', 'status-out');
+                btn.classList.add(`status-${result.newStatus.toLowerCase()}`);
+            }
+        });
+        
+        // Reload just the lineup data (available players list may have changed)
+        const lineupData = await api(`/api/games/${state.currentGame.id}/lineup`);
+        state.availablePlayers = lineupData.availablePlayers;
+        state.genders = lineupData.genders;
+        state.lineup = lineupData.lineup;
+        state.sitOutCounts = lineupData.sitOutCounts;
+        
+        // Re-render just the lineup table
+        updateLineupTable();
     } catch (error) {
         console.error('Failed to toggle player status:', error);
+    }
+}
+
+function updateLineupTable() {
+    const tableWrapper = document.querySelector('.lineup-table-wrapper');
+    if (tableWrapper) {
+        tableWrapper.innerHTML = buildLineupTable();
     }
 }
 
@@ -528,6 +551,9 @@ async function updateGameDetails() {
 
 async function updatePosition(player, inning, position) {
     try {
+        // Store the old position to calculate sit-out count change
+        const oldPosition = state.lineup[inning]?.[player] || '';
+        
         await api(`/api/games/${state.currentGame.id}/lineup/${encodeURIComponent(player)}/${inning}`, {
             method: 'PUT',
             body: JSON.stringify({ position })
@@ -544,13 +570,18 @@ async function updatePosition(player, inning, position) {
             delete state.lineup[inning][player];
         }
         
-        // Update sit-out counts
-        if (position === 'Out') {
+        // Update sit-out counts properly
+        // Decrement if moving FROM "Out"
+        if (oldPosition === 'Out' && position !== 'Out') {
+            state.sitOutCounts[player] = Math.max(0, (state.sitOutCounts[player] || 0) - 1);
+        }
+        // Increment if moving TO "Out"
+        if (position === 'Out' && oldPosition !== 'Out') {
             state.sitOutCounts[player] = (state.sitOutCounts[player] || 0) + 1;
         }
         
-        // Re-render the table to update warnings
-        renderGameLineup();
+        // Re-render just the lineup table to update warnings and counts
+        updateLineupTable();
     } catch (error) {
         console.error('Failed to update position:', error);
     }

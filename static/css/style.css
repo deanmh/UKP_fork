@@ -713,6 +713,18 @@ h4 { font-size: 1.25rem; }
 .position-select.position-out {
     background: rgba(231, 76, 60, 0.2);
     border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* Style dropdown options for out position */
+.position-select.position-out option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.position-select.position-out option:checked {
+    background: var(--danger);
+    color: white;
 }
 
 .position-select.has-duplicate {

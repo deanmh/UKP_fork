@@ -134,6 +134,15 @@ UKP/
 | `PORT` | Server port | `8080` |
 | `FLASK_DEBUG` | Enable debug mode | `false` |
 
+## Data Persistence
+
+**Important**: All data (users, rosters, games, lineups) is stored in the SQLite database located in the `data/` directory.
+
+- When using Docker Compose, the `./data:/app/data` volume mount ensures your data persists across container restarts and redeployments
+- **Your admin user and all data will be preserved** when you rebuild and redeploy the container
+- To backup your data, simply copy the `data/` folder
+- To reset all data, delete the `data/kickball_roster.db` file and the `data/logos/` folder
+
 ## Security Notes
 
 - Passwords are hashed using SHA256
