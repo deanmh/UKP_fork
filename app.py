@@ -450,7 +450,11 @@ def get_games():
     conn = get_db()
     c = conn.cursor()
     c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games ORDER BY game_date DESC')
-    games = [dict(row) for row in c.fetchall()]
+    games = []
+    for row in c.fetchall():
+        game = dict(row)
+        game['is_published'] = bool(game.get('is_published'))
+        games.append(game)
     conn.close()
     return jsonify(games)
 
@@ -868,7 +872,10 @@ def get_published_lineup(game_id):
     c.execute('SELECT is_published FROM games WHERE id = ?', (game_id,))
     game = c.fetchone()
     
-    if not game or not game['is_published']:
+    # Check if game exists and is published (is_published can be 0, 1, True, False, or None)
+    is_published = game and bool(game['is_published'])
+    
+    if not is_published:
         conn.close()
         return jsonify({
             'published': False,

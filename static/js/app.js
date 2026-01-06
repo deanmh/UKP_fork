@@ -636,7 +636,16 @@ async function movePlayer(player, direction) {
 async function copyInning() {
     try {
         await api(`/api/games/${state.currentGame.id}/lineup/copy`, { method: 'POST' });
-        await loadGameLineup();
+        
+        // Reload just the lineup data (not the entire page)
+        const lineupData = await api(`/api/games/${state.currentGame.id}/lineup`);
+        state.availablePlayers = lineupData.availablePlayers;
+        state.genders = lineupData.genders;
+        state.lineup = lineupData.lineup;
+        state.sitOutCounts = lineupData.sitOutCounts;
+        
+        // Re-render just the lineup table
+        updateLineupTable();
     } catch (error) {
         console.error('Failed to copy inning:', error);
     }
@@ -647,7 +656,16 @@ async function resetLineup() {
     
     try {
         await api(`/api/games/${state.currentGame.id}/lineup/reset`, { method: 'POST' });
-        await loadGameLineup();
+        
+        // Reload just the lineup data (not the entire page)
+        const lineupData = await api(`/api/games/${state.currentGame.id}/lineup`);
+        state.availablePlayers = lineupData.availablePlayers;
+        state.genders = lineupData.genders;
+        state.lineup = lineupData.lineup;
+        state.sitOutCounts = lineupData.sitOutCounts;
+        
+        // Re-render just the lineup table
+        updateLineupTable();
     } catch (error) {
         console.error('Failed to reset lineup:', error);
     }
