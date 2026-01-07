@@ -136,8 +136,20 @@ function updateAuthUI() {
         `;
     }
     
-    // Show/hide view banner
-    document.getElementById('viewBanner').style.display = state.authenticated ? 'none' : 'flex';
+    // Show/hide view banner - hide if authenticated OR if there are published lineups
+    updateViewBanner();
+}
+
+function updateViewBanner() {
+    const viewBanner = document.getElementById('viewBanner');
+    if (state.authenticated) {
+        // Always hide for authenticated users
+        viewBanner.style.display = 'none';
+    } else {
+        // For unauthenticated users, hide if there are published games
+        const hasPublishedGames = state.games && state.games.some(g => g.is_published);
+        viewBanner.style.display = hasPublishedGames ? 'none' : 'flex';
+    }
 }
 
 function updateTabs() {
@@ -1097,6 +1109,9 @@ async function loadViewLineup() {
     try {
         const games = await api('/api/games');
         state.games = games;
+        
+        // Update view banner based on published games
+        updateViewBanner();
         
         if (games.length === 0) {
             panel.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div><p>No games created yet</p></div>`;
