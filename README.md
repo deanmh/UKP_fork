@@ -106,6 +106,89 @@ Each inning has 12 positions:
 - **Database**: SQLite
 - **Production Server**: Gunicorn
 
+## API Reference
+
+All API endpoints return JSON. Endpoints marked with 🔒 require authentication.
+
+### Authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/status` | Check if user is authenticated |
+| POST | `/api/auth/login` | Login with username/password |
+| POST | `/api/auth/logout` | Logout current user |
+| POST | `/api/auth/register` | Register first user (only works if no users exist) |
+| GET | `/api/auth/has-users` | Check if any users exist |
+
+### Roster Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/roster` | Get all main roster players |
+| POST 🔒 | `/api/roster` | Add a player to main roster |
+| DELETE 🔒 | `/api/roster/<name>` | Delete a player from main roster |
+| PUT 🔒 | `/api/roster/<name>/gender` | Toggle player gender |
+
+### Substitutes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/substitutes` | Get all substitute players |
+| POST 🔒 | `/api/substitutes` | Add a substitute player |
+| DELETE 🔒 | `/api/substitutes/<name>` | Delete a substitute |
+| PUT 🔒 | `/api/substitutes/<name>/gender` | Toggle substitute gender |
+
+### Games
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/games` | Get all games |
+| GET | `/api/games/current` | Get or create current game (next Thursday) |
+| GET | `/api/games/<id>` | Get a specific game |
+| PUT 🔒 | `/api/games/<id>` | Update game details (date, team name, opponent) |
+| POST 🔒 | `/api/games/<id>/logo` | Upload team logo (multipart form) |
+| DELETE 🔒 | `/api/games/<id>/logo` | Delete team logo |
+
+### Player Status (per game)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/games/<id>/status` | Get all player statuses for a game |
+| PUT 🔒 | `/api/games/<id>/status/<player>` | Toggle player IN/OUT status |
+
+### Lineup
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/games/<id>/lineup` | Get lineup for a game (for editing) |
+| GET | `/api/games/<id>/lineup/published` | Get **published** lineup (public view) |
+| PUT 🔒 | `/api/games/<id>/lineup/<player>/<inning>` | Set player position for an inning |
+| POST 🔒 | `/api/games/<id>/lineup/copy` | Copy inning 1 to all innings |
+| POST 🔒 | `/api/games/<id>/lineup/reset` | Reset all lineup positions |
+| PUT 🔒 | `/api/games/<id>/order/<player>` | Move player up/down in kicking order |
+
+### Publishing
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST 🔒 | `/api/games/<id>/publish` | Publish lineup (makes it publicly visible) |
+| POST 🔒 | `/api/games/<id>/unpublish` | Unpublish lineup (hides from public) |
+
+### Example API Calls
+
+```bash
+# Get all games
+curl https://your-domain.com/api/games
+
+# Get published lineup for game 1 (public, no auth required)
+curl https://your-domain.com/api/games/1/lineup/published
+
+# Login
+curl -X POST https://your-domain.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "yourpassword"}'
+```
+
 ## Project Structure
 
 ```
