@@ -1143,6 +1143,13 @@ function escapeHtml(text) {
 document.addEventListener('DOMContentLoaded', async () => {
     // Check auth status and initialize
     await checkAuthStatus();
+    
+    // Show the correct panel based on auth status
+    // (updateTabs already set state.currentTab appropriately)
+    document.getElementById('gameLineupPanel').style.display = state.currentTab === 'gameLineup' ? 'block' : 'none';
+    document.getElementById('rosterPanel').style.display = state.currentTab === 'roster' ? 'block' : 'none';
+    document.getElementById('viewLineupPanel').style.display = state.currentTab === 'viewLineup' ? 'block' : 'none';
+    
     await loadCurrentTab();
     
     // Login form
