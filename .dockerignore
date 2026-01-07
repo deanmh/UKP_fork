@@ -12,3 +12,13 @@ venv/
 README.md
 .DS_Store
 
+# Data folder - NEVER include in image, always mount as volume
+data/
+
+# Legacy files
+.streamlit/
+*.md
+deploy.sh
+launch-ec2.sh
+setup-aws.sh
+.github/

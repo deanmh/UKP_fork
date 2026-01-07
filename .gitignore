@@ -27,6 +27,7 @@ wheels/
 *.db
 *.sqlite
 *.sqlite3
+data/
 
 # SSH Keys
 *.pem

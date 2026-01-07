@@ -332,6 +332,61 @@ def has_users():
     return jsonify({'hasUsers': count > 0})
 
 
+@app.route('/api/auth/users', methods=['GET'])
+@login_required
+def get_users():
+    """Get list of all users (admin only)"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, username FROM users ORDER BY username')
+    users = [{'id': row['id'], 'username': row['username']} for row in c.fetchall()]
+    conn.close()
+    return jsonify(users)
+
+
+@app.route('/api/auth/users', methods=['POST'])
+@login_required
+def create_user():
+    """Create a new user (admin only)"""
+    data = request.json
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        return jsonify({'error': 'Username and password required'}), 400
+    
+    if len(password) < 4:
+        return jsonify({'error': 'Password must be at least 4 characters'}), 400
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    try:
+        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                  (username, hash_password(password)))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Username already exists'}), 400
+
+
+@app.route('/api/auth/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def delete_user(user_id):
+    """Delete a user (cannot delete yourself)"""
+    if session.get('user_id') == user_id:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
 # ========== Roster Routes ==========
 @app.route('/api/roster', methods=['GET'])
 def get_roster():

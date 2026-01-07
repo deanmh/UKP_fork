@@ -766,15 +766,16 @@ async function loadRoster() {
     try {
         const roster = await api('/api/roster');
         const substitutes = await api('/api/substitutes');
+        const users = await api('/api/auth/users');
         
-        renderRoster(roster, substitutes);
+        renderRoster(roster, substitutes, users);
     } catch (error) {
         console.error('Failed to load roster:', error);
         panel.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Failed to load roster</p></div>`;
     }
 }
 
-function renderRoster(roster, substitutes) {
+function renderRoster(roster, substitutes, users = []) {
     const panel = document.getElementById('rosterPanel');
     
     const rosterListHtml = roster.map(player => `
@@ -813,6 +814,23 @@ function renderRoster(roster, substitutes) {
                         onclick="deleteSubstitute('${escapeHtml(player.name)}')">
                     Delete
                 </button>
+            </div>
+        </div>
+    `).join('');
+    
+    const usersListHtml = users.map(user => `
+        <div class="roster-item">
+            <div class="roster-item-name">
+                <span>${escapeHtml(user.username)}</span>
+                ${user.username === state.username ? '<span class="text-muted">(you)</span>' : ''}
+            </div>
+            <div class="roster-item-actions">
+                ${user.username !== state.username ? `
+                    <button class="btn btn-ghost btn-sm" 
+                            onclick="deleteUser(${user.id}, '${escapeHtml(user.username)}')">
+                        Delete
+                    </button>
+                ` : ''}
             </div>
         </div>
     `).join('');
@@ -861,6 +879,30 @@ function renderRoster(roster, substitutes) {
             
             <div class="roster-list">
                 ${subsListHtml || '<p class="text-muted">No substitutes yet</p>'}
+            </div>
+        </div>
+        
+        <div class="card roster-section">
+            <div class="card-header">
+                <h3 class="card-title">User Management</h3>
+            </div>
+            
+            <form class="form-inline mb-lg" onsubmit="addUser(event)">
+                <div class="form-group">
+                    <label>Add New User</label>
+                    <input type="text" class="form-input" id="newUsername" 
+                           placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="form-input" id="newUserPassword" 
+                           placeholder="Password" required minlength="4">
+                </div>
+                <button type="submit" class="btn btn-primary">Add User</button>
+            </form>
+            
+            <div class="roster-list">
+                ${usersListHtml || '<p class="text-muted">No users</p>'}
             </div>
         </div>
     `;
@@ -966,6 +1008,42 @@ async function toggleSubGender(name) {
     }
 }
 
+async function addUser(event) {
+    event.preventDefault();
+    
+    const usernameInput = document.getElementById('newUsername');
+    const passwordInput = document.getElementById('newUserPassword');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    
+    if (!username || !password) return;
+    
+    try {
+        await api('/api/auth/users', {
+            method: 'POST',
+            body: JSON.stringify({ username, password })
+        });
+        
+        usernameInput.value = '';
+        passwordInput.value = '';
+        
+        await loadRoster();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+    
+    try {
+        await api(`/api/auth/users/${userId}`, { method: 'DELETE' });
+        await loadRoster();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 // ========================================
 // View Lineup Functions
 // ========================================
@@ -989,7 +1067,7 @@ async function loadViewLineup() {
     }
 }
 
-async function renderViewLineup(gameId) {
+async function renderViewLineup(gameId, selectedPlayer = null) {
     const panel = document.getElementById('viewLineupPanel');
     
     // Find the game
@@ -1006,6 +1084,10 @@ async function renderViewLineup(gameId) {
         // Public view only shows published lineups
         lineupData = await api(`/api/games/${gameId}/lineup/published`);
     }
+    
+    // Store for player filter
+    state.currentViewLineup = lineupData;
+    state.currentViewGameId = gameId;
     
     // Build game selector - show publish status for authenticated users
     const gameSelectorHtml = `
@@ -1031,47 +1113,136 @@ async function renderViewLineup(gameId) {
         ? `<div class="team-logo-display"><img src="/logos/${game.team_logo}" alt="${escapeHtml(game.team_name)} Logo"></div>`
         : '';
     
-    // Build view table
-    let tableHtml = '';
+    // Build content
+    let contentHtml = '';
     
     // Check if lineup is published (for public view)
     if (!lineupData.published) {
-        tableHtml = `<div class="empty-state">
+        contentHtml = `<div class="empty-state">
             <div class="empty-state-icon">🔒</div>
             <p>Lineup not yet published</p>
             <p class="text-muted">Check back later for the lineup.</p>
         </div>`;
     } else if (lineupData.availablePlayers.length === 0) {
-        tableHtml = `<div class="empty-state"><div class="empty-state-icon">👥</div><p>No lineup set for this game</p></div>`;
+        contentHtml = `<div class="empty-state"><div class="empty-state-icon">👥</div><p>No lineup set for this game</p></div>`;
     } else {
-        let headerRow = '<tr><th>#</th><th>Player</th>';
-        for (let i = 1; i <= 7; i++) {
-            headerRow += `<th>Inn ${i}</th>`;
-        }
-        headerRow += '</tr>';
-        
-        let bodyRows = '';
-        lineupData.availablePlayers.forEach((player, index) => {
-            bodyRows += `<tr><td>${index + 1}</td><td>${escapeHtml(player)}</td>`;
-            
-            for (let inning = 1; inning <= 7; inning++) {
-                const position = lineupData.lineup[inning]?.[player] || '-';
-                const abbrev = position !== '-' ? (lineupData.abbreviations[position] || position) : '-';
-                const isOut = position === 'Out';
-                bodyRows += `<td class="${isOut ? 'out-position' : ''}">${abbrev}</td>`;
-            }
-            
-            bodyRows += '</tr>';
-        });
-        
-        tableHtml = `
-            <div class="lineup-table-wrapper">
-                <table class="view-table">
-                    <thead>${headerRow}</thead>
-                    <tbody>${bodyRows}</tbody>
-                </table>
+        // Player filter dropdown
+        const playerFilterHtml = `
+            <div class="player-filter">
+                <label class="form-group">
+                    <span>Filter by Player</span>
+                    <select class="form-select" id="playerFilter" onchange="filterByPlayer(this.value)">
+                        <option value="">All Players</option>
+                        ${lineupData.availablePlayers.map((p, idx) => `
+                            <option value="${escapeHtml(p)}" ${selectedPlayer === p ? 'selected' : ''}>
+                                ${idx + 1}. ${escapeHtml(p)}
+                            </option>
+                        `).join('')}
+                    </select>
+                </label>
             </div>
         `;
+        
+        // If a player is selected, show mobile-friendly card view
+        if (selectedPlayer) {
+            const playerIndex = lineupData.availablePlayers.indexOf(selectedPlayer) + 1;
+            const isFemale = lineupData.genders[selectedPlayer];
+            
+            let inningsHtml = '';
+            for (let inning = 1; inning <= 7; inning++) {
+                const position = lineupData.lineup[inning]?.[selectedPlayer] || '-';
+                const abbrev = position !== '-' ? (lineupData.abbreviations[position] || position) : '-';
+                const fullName = position !== '-' ? position : 'Not assigned';
+                const isOut = position === 'Out';
+                
+                inningsHtml += `
+                    <div class="player-inning-card ${isOut ? 'is-out' : ''}">
+                        <div class="inning-number">Inning ${inning}</div>
+                        <div class="inning-position">${abbrev}</div>
+                        <div class="inning-position-full">${fullName}</div>
+                    </div>
+                `;
+            }
+            
+            contentHtml = `
+                ${playerFilterHtml}
+                <div class="player-detail-view">
+                    <div class="player-detail-header">
+                        <div class="player-detail-number">#${playerIndex}</div>
+                        <div class="player-detail-name">
+                            ${escapeHtml(selectedPlayer)}
+                            ${isFemale ? '<span class="gender-indicator">♀</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="player-innings-grid">
+                        ${inningsHtml}
+                    </div>
+                </div>
+            `;
+        } else {
+            // Show full table (desktop) + mobile cards
+            let headerRow = '<tr><th>#</th><th>Player</th>';
+            for (let i = 1; i <= 7; i++) {
+                headerRow += `<th>Inn ${i}</th>`;
+            }
+            headerRow += '</tr>';
+            
+            let bodyRows = '';
+            let mobileCardsHtml = '';
+            
+            lineupData.availablePlayers.forEach((player, index) => {
+                const isFemale = lineupData.genders[player];
+                
+                // Desktop table row
+                bodyRows += `<tr onclick="filterByPlayer('${escapeHtml(player)}')" class="clickable-row">
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(player)}${isFemale ? ' ♀' : ''}</td>`;
+                
+                // Mobile card
+                let positionsHtml = '';
+                for (let inning = 1; inning <= 7; inning++) {
+                    const position = lineupData.lineup[inning]?.[player] || '-';
+                    const abbrev = position !== '-' ? (lineupData.abbreviations[position] || position) : '-';
+                    const isOut = position === 'Out';
+                    
+                    bodyRows += `<td class="${isOut ? 'out-position' : ''}">${abbrev}</td>`;
+                    positionsHtml += `<span class="mobile-pos ${isOut ? 'out' : ''}">${abbrev}</span>`;
+                }
+                
+                bodyRows += '</tr>';
+                
+                // Mobile card for this player
+                mobileCardsHtml += `
+                    <div class="mobile-player-card" onclick="filterByPlayer('${escapeHtml(player)}')">
+                        <div class="mobile-player-info">
+                            <span class="mobile-player-number">#${index + 1}</span>
+                            <span class="mobile-player-name">${escapeHtml(player)}${isFemale ? ' ♀' : ''}</span>
+                        </div>
+                        <div class="mobile-positions">
+                            ${positionsHtml}
+                        </div>
+                        <div class="mobile-tap-hint">Tap to view details</div>
+                    </div>
+                `;
+            });
+            
+            contentHtml = `
+                ${playerFilterHtml}
+                
+                <div class="desktop-table">
+                    <div class="lineup-table-wrapper">
+                        <table class="view-table">
+                            <thead>${headerRow}</thead>
+                            <tbody>${bodyRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="mobile-cards">
+                    ${mobileCardsHtml}
+                </div>
+            `;
+        }
     }
     
     // Show publish status banner for authenticated users viewing unpublished game
@@ -1095,13 +1266,19 @@ async function renderViewLineup(gameId) {
         ${unpublishedBanner}
         
         <div class="card">
-            ${tableHtml}
+            ${contentHtml}
         </div>
     `;
 }
 
 async function changeViewGame(gameId) {
     await renderViewLineup(parseInt(gameId));
+}
+
+function filterByPlayer(playerName) {
+    if (state.currentViewGameId) {
+        renderViewLineup(state.currentViewGameId, playerName || null);
+    }
 }
 
 // ========================================

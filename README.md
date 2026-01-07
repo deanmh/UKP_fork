@@ -119,6 +119,9 @@ All API endpoints return JSON. Endpoints marked with 🔒 require authentication
 | POST | `/api/auth/logout` | Logout current user |
 | POST | `/api/auth/register` | Register first user (only works if no users exist) |
 | GET | `/api/auth/has-users` | Check if any users exist |
+| GET 🔒 | `/api/auth/users` | Get list of all users |
+| POST 🔒 | `/api/auth/users` | Create a new user |
+| DELETE 🔒 | `/api/auth/users/<id>` | Delete a user (cannot delete yourself) |
 
 ### Roster Management
 
@@ -221,10 +224,59 @@ UKP/
 
 **Important**: All data (users, rosters, games, lineups) is stored in the SQLite database located in the `data/` directory.
 
-- When using Docker Compose, the `./data:/app/data` volume mount ensures your data persists across container restarts and redeployments
-- **Your admin user and all data will be preserved** when you rebuild and redeploy the container
-- To backup your data, simply copy the `data/` folder
-- To reset all data, delete the `data/kickball_roster.db` file and the `data/logos/` folder
+### How It Works
+
+The `data/` folder is **mounted as a volume** from your host server into the container. This means:
+- The database lives on your **host server**, not inside the container
+- When you rebuild the container, the data remains untouched
+- The `data/` folder is excluded from the Docker image (via `.dockerignore`)
+
+### Rebuilding Without Losing Data
+
+To update your app without losing any data:
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Rebuild and restart container (data is preserved!)
+docker-compose down
+docker-compose up -d --build
+
+# Verify it's running
+docker-compose ps
+docker-compose logs -f
+```
+
+**⚠️ DO NOT use `docker-compose down -v`** - the `-v` flag removes volumes and will delete your data!
+
+### Backup Your Data
+
+```bash
+# Create a backup
+cp -r ./data ./data-backup-$(date +%Y%m%d)
+
+# Or just the database
+cp ./data/kickball_roster.db ./kickball_roster_backup_$(date +%Y%m%d).db
+```
+
+### What Gets Persisted
+
+| Data | Location |
+|------|----------|
+| Users & passwords | `data/kickball_roster.db` |
+| Players & rosters | `data/kickball_roster.db` |
+| Games & lineups | `data/kickball_roster.db` |
+| Team logos | `data/logos/` |
+
+### Reset All Data
+
+To start fresh (delete everything):
+
+```bash
+rm -rf ./data/*
+docker-compose restart
+```
 
 ## Security Notes
 

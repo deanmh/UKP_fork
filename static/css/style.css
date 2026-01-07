@@ -990,6 +990,215 @@ h4 { font-size: 1.25rem; }
     color: var(--danger);
 }
 
+.view-table .clickable-row {
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.view-table .clickable-row:hover {
+    background: var(--primary-light);
+}
+
+/* Player Filter */
+.player-filter {
+    margin-bottom: var(--space-lg);
+    max-width: 300px;
+}
+
+/* Desktop/Mobile visibility */
+.desktop-table {
+    display: block;
+}
+
+.mobile-cards {
+    display: none;
+}
+
+/* Mobile Player Cards */
+.mobile-player-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.mobile-player-card:hover,
+.mobile-player-card:active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+
+.mobile-player-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.mobile-player-number {
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 30px;
+}
+
+.mobile-player-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mobile-positions {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-xs);
+}
+
+.mobile-pos {
+    background: var(--bg-secondary);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.mobile-pos.out {
+    background: rgba(231, 76, 60, 0.2);
+    color: var(--danger);
+}
+
+.mobile-tap-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* Player Detail View (single player) */
+.player-detail-view {
+    padding: var(--space-md);
+}
+
+.player-detail-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-md);
+    border-bottom: 2px solid var(--primary);
+}
+
+.player-detail-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'Bebas Neue', sans-serif;
+}
+
+.player-detail-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.player-innings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--space-md);
+}
+
+.player-inning-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.player-inning-card.is-out {
+    background: rgba(231, 76, 60, 0.1);
+    border-color: var(--danger);
+}
+
+.inning-number {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: var(--space-xs);
+}
+
+.inning-position {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'Bebas Neue', sans-serif;
+}
+
+.player-inning-card.is-out .inning-position {
+    color: var(--danger);
+}
+
+.inning-position-full {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+}
+
+/* Mobile responsive for View Lineup */
+@media (max-width: 768px) {
+    .desktop-table {
+        display: none;
+    }
+    
+    .mobile-cards {
+        display: block;
+    }
+    
+    .view-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .game-info h2 {
+        font-size: 1.25rem;
+    }
+    
+    .team-logo-display {
+        margin-top: var(--space-md);
+    }
+    
+    .team-logo-display img {
+        max-width: 100px;
+        max-height: 100px;
+    }
+    
+    .player-filter {
+        max-width: 100%;
+    }
+    
+    .player-detail-header {
+        flex-direction: column;
+        text-align: center;
+        gap: var(--space-sm);
+    }
+    
+    .player-detail-number {
+        font-size: 1.5rem;
+    }
+    
+    .player-detail-name {
+        font-size: 1.25rem;
+    }
+    
+    .player-innings-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 /* ========================================
    Modal
    ======================================== */
