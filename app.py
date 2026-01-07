@@ -449,11 +449,23 @@ def toggle_substitute_gender(name):
 def get_games():
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games ORDER BY game_date DESC')
+    
+    # Check if is_published column exists (for backward compatibility)
+    c.execute("PRAGMA table_info(games)")
+    columns = [row[1] for row in c.fetchall()]
+    has_publish_columns = 'is_published' in columns
+    
+    if has_publish_columns:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games ORDER BY game_date DESC')
+    else:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games ORDER BY game_date DESC')
+    
     games = []
     for row in c.fetchall():
         game = dict(row)
-        game['is_published'] = bool(game.get('is_published'))
+        game['is_published'] = bool(game.get('is_published')) if has_publish_columns else False
+        if not has_publish_columns:
+            game['published_at'] = None
         games.append(game)
     conn.close()
     return jsonify(games)
@@ -464,15 +476,30 @@ def get_current_game():
     conn = get_db()
     c = conn.cursor()
     
+    # Check if is_published column exists
+    c.execute("PRAGMA table_info(games)")
+    columns = [row[1] for row in c.fetchall()]
+    has_publish_columns = 'is_published' in columns
+    
     next_thursday = get_next_thursday().date()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE game_date = ?',
-              (next_thursday,))
+    
+    if has_publish_columns:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE game_date = ?',
+                  (next_thursday,))
+    else:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games WHERE game_date = ?',
+                  (next_thursday,))
+    
     game = c.fetchone()
     
     if not game:
         # Create new game
-        c.execute('INSERT INTO games (game_date, team_name, opponent_name, is_published) VALUES (?, ?, ?, 0)',
-                  (next_thursday, "Unsolicited Kick Pics", ""))
+        if has_publish_columns:
+            c.execute('INSERT INTO games (game_date, team_name, opponent_name, is_published) VALUES (?, ?, ?, 0)',
+                      (next_thursday, "Unsolicited Kick Pics", ""))
+        else:
+            c.execute('INSERT INTO games (game_date, team_name, opponent_name) VALUES (?, ?, ?)',
+                      (next_thursday, "Unsolicited Kick Pics", ""))
         game_id = c.lastrowid
         conn.commit()
         game = {'id': game_id, 'game_date': str(next_thursday), 
@@ -480,7 +507,9 @@ def get_current_game():
                 'is_published': False, 'published_at': None}
     else:
         game = dict(game)
-        game['is_published'] = bool(game.get('is_published'))
+        game['is_published'] = bool(game.get('is_published')) if has_publish_columns else False
+        if not has_publish_columns:
+            game['published_at'] = None
     
     conn.close()
     return jsonify(game)
@@ -490,13 +519,25 @@ def get_current_game():
 def get_game(game_id):
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE id = ?', (game_id,))
+    
+    # Check if is_published column exists
+    c.execute("PRAGMA table_info(games)")
+    columns = [row[1] for row in c.fetchall()]
+    has_publish_columns = 'is_published' in columns
+    
+    if has_publish_columns:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo, is_published, published_at FROM games WHERE id = ?', (game_id,))
+    else:
+        c.execute('SELECT id, game_date, team_name, opponent_name, team_logo FROM games WHERE id = ?', (game_id,))
+    
     game = c.fetchone()
     conn.close()
     
     if game:
         game_dict = dict(game)
-        game_dict['is_published'] = bool(game_dict.get('is_published'))
+        game_dict['is_published'] = bool(game_dict.get('is_published')) if has_publish_columns else False
+        if not has_publish_columns:
+            game_dict['published_at'] = None
         return jsonify(game_dict)
     return jsonify({'error': 'Game not found'}), 404
 
@@ -868,12 +909,17 @@ def get_published_lineup(game_id):
     conn = get_db()
     c = conn.cursor()
     
-    # Check if game is published
-    c.execute('SELECT is_published FROM games WHERE id = ?', (game_id,))
-    game = c.fetchone()
+    # Check if is_published column exists
+    c.execute("PRAGMA table_info(games)")
+    columns = [row[1] for row in c.fetchall()]
+    has_publish_columns = 'is_published' in columns
     
-    # Check if game exists and is published (is_published can be 0, 1, True, False, or None)
-    is_published = game and bool(game['is_published'])
+    # Check if game is published
+    is_published = False
+    if has_publish_columns:
+        c.execute('SELECT is_published FROM games WHERE id = ?', (game_id,))
+        game = c.fetchone()
+        is_published = game and bool(game['is_published'])
     
     if not is_published:
         conn.close()
